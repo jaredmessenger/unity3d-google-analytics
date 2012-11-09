@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections;
+using System.Collections.Generic;
 
 /*
  * 		requestParams["utmac"]  = // Account String UA-XXXXX
@@ -26,8 +27,12 @@ public class GoogleAnalytics : MonoBehaviour {
 	
 	public static GoogleAnalytics instance;
 	
-	private Hashtable requestParam = new Hashtable();
-	private long sessionStartTime;
+	private Hashtable requestParams = new Hashtable();
+	
+	private string currentSessionStartTime;
+	private string lastSessionStartTime;
+	private string firstSessionStartTime;
+	private int sessions;
 	
 	void Awake()
 	{
@@ -42,10 +47,18 @@ public class GoogleAnalytics : MonoBehaviour {
 	
 	public void Start(){
 		//Get the player prefs last time played and current time
-		sessionStartTime = GetEpochTime();
+		currentSessionStartTime = GetEpochTime().ToString();
+		lastSessionStartTime = SavedLastSessionStartTime;
+		firstSessionStartTime = SavedFirstSessionStartTime;
+		sessions = NumSessions;
 		
-		requestParam["utmac"] = propertyID;
-		requestParam["utmhn"] = defaultURL;
+		requestParams["utmac"] = propertyID;
+		requestParams["utmhn"] = defaultURL;
+		
+		// Set the last session start time
+		SavedLastSessionStartTime = currentSessionStartTime;
+		// Increment the number of times played
+		IncrSessions();
     }
 	
 	public void SetCustomVar(int index, string name, string value, int scope)
@@ -60,24 +73,21 @@ public class GoogleAnalytics : MonoBehaviour {
 		string levelName = Application.loadedLevelName;
 		requestParams["utmt"] = GoogleTrackType.GALevel;
 		requestParams["utmn"] = Random.Range(1000000000,2000000000).ToString();
+		requestParams["utmcc"] = CookieData();
+		requestParams["utmp"] = levelName;
 		
 		Dispatch();
-		
-		// Remove so the slate it clean for new tracking
-		requestParam.Remove("utmt");
-		requestParam.Remove("utmn");
+		Clear();
 	}
 	
 	public void TrackEvent(string category, string label, string action, int value)
 	{
 		requestParams["utmt"] = GoogleTrackType.GAEvent;
 		requestParams["utmn"] = Random.Range(1000000000,2000000000).ToString();
+		requestParams["utmcc"] = CookieData();
 		
 		Dispatch();
-		
-		// Remove so the slate it clean for new tracking
-		requestParam.Remove("utmt");
-		requestParam.Remove("utmn");
+		Clear();
 	}
 	
 	public void TrackTiming()
@@ -85,12 +95,10 @@ public class GoogleAnalytics : MonoBehaviour {
 	 	// https://developers.google.com/analytics/devguides/collection/gajs/gaTrackingTiming
 		requestParams["utmt"] = GoogleTrackType.GATiming;
 		requestParams["utmn"] = Random.Range(1000000000,2000000000).ToString();
+		requestParams["utmcc"] = CookieData();
 		
 		Dispatch();
-		
-		// Remove so the slate it clean for new tracking
-		requestParam.Remove("utmt");
-		requestParam.Remove("utmn");
+		Clear();
 	}
 	
 	public void Dispatch()
@@ -101,28 +109,69 @@ public class GoogleAnalytics : MonoBehaviour {
 		new WWW(url);
 	}
 	
-	private long DeviceIdentifier()
+	private void Clear()
 	{
-        return Hash (SystemInfo.deviceUniqueIdentifier );
+		// Remove so the slate it clean for new tracking
+		requestParams.Remove("utmt");
+		requestParams.Remove("utmn");
+		requestParams.Remove("utmcc");
 	}
 	
-	private void SetCookieData()
+	private long DeviceIdentifier
+	{
+        get{ return Hash (SystemInfo.deviceUniqueIdentifier ); }
+	}
+	
+	private int NumSessions
+	{
+		get{ return PlayerPrefs.GetInt("gaNumSessions"); }
+	}
+	
+	private void IncrSessions()
+	{
+		int sessions = PlayerPrefs.GetInt("gaNumSessions");
+		sessions += 1;
+		PlayerPrefs.SetInt("gaNumSessions", sessions);
+	}
+	
+	private string SavedFirstSessionStartTime
+	{
+		get{ if (PlayerPrefs.HasKey("gaFirstSessionStartTime"))
+				{
+					return PlayerPrefs.GetString("gaFirstSessionStartTime");
+				}else{
+					long currentTime = GetEpochTime();
+					PlayerPrefs.SetString("gaFirstSessionStartTime", currentTime.ToString());
+					PlayerPrefs.SetString("gaLastSessionStartTime", currentTime.ToString());
+					return PlayerPrefs.GetString("gaFirstSessionStartTime");
+				}
+			}	
+	}
+	
+	private string SavedLastSessionStartTime
+	{
+		get{ return PlayerPrefs.GetString("gaLastSessionStartTime"); }
+		set{ PlayerPrefs.SetString("gaLastSessionStartTime", value.ToString()); }
+	}
+	
+	// Grab the cookie data for every event/pageview because it grabs the current time
+	private string CookieData()
 	{
 		long currentTime  = GetEpochTime();
-		long domainHas = Hash(defaultURL);
+		long domainHash = Hash(defaultURL);
 		
 		// __utma Identifies unique Visitors
-		string _utma   = domainHash + "." + DeviceIdentifier + "." + TimeFirstPlayed + "." + 
-			TimeLastPlayed + "." + sessionStartTime + "." + NumPlays + WWW.EscapeURL(";") + WWW.EscapeURL("+");
+		string _utma   = domainHash + "." + DeviceIdentifier + "." + firstSessionStartTime + "." + 
+			lastSessionStartTime + "." + currentSessionStartTime + "." + sessions + WWW.EscapeURL(";") + WWW.EscapeURL("+");
 
 		// __utmz Referral information in the cookie
 		string cookieUTMZstr = "utmcsr" + WWW.EscapeURL("=") + "(direct)" + WWW.EscapeURL("|") + 
 			"utmccn" + WWW.EscapeURL("=") + "(direct)" + WWW.EscapeURL("|") + 
 			"utmcmd" + WWW.EscapeURL("=") + "(none)" + WWW.EscapeURL(";");
 		
-		string _utmz = domainHash + "." + currentTime + "." + NumPlays + ".1." + cookieUTMZstr;
+		string _utmz = domainHash + "." + currentTime + "." + sessions + ".1." + cookieUTMZstr;
 		
-		requestParams["utmcc"] = "__utma" + WWW.EscapeURL("=") + _utma + "__utmz" + WWW.EscapeURL("=") + _utmz;
+		return "__utma" + WWW.EscapeURL("=") + _utma + "__utmz" + WWW.EscapeURL("=") + _utmz;
 	}
 	
 	private string BuildRequestString()
