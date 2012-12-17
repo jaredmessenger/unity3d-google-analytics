@@ -28,6 +28,7 @@ public class GoogleAnalytics : MonoBehaviour {
 	public static GoogleAnalytics instance;
 	
 	private Hashtable requestParams = new Hashtable();
+	private List<Hashtable> eventList= new List<Hashtable>();
 	
 	private string currentSessionStartTime;
 	private string lastSessionStartTime;
@@ -57,9 +58,49 @@ public class GoogleAnalytics : MonoBehaviour {
 		
 		// Set the last session start time
 		SavedLastSessionStartTime = currentSessionStartTime;
+		
 		// Increment the number of times played
 		IncrSessions();
-    }
+	}
+	
+	public void Add(GAEvent gaEvent)
+	{
+		Hashtable urlParams = requestParams;
+		
+		urlParams["utmt"]  = GoogleTrackTypeToString( GoogleTrackType.GAEvent );
+		urlParams["utmcc"] = CookieData();
+		urlParams["utmn"]  = Random.Range(1000000000,2000000000).ToString();
+		urlParams["utme"]  = gaEvent.ToUrlParamString();
+		
+		if (gaEvent.NonInteraction)
+		{
+			urlParams["utmni"] = 1;	
+		}
+		eventList.Add(urlParams);
+	}
+	
+	public void Add(GALevel gaLevel)
+	{
+		Hashtable urlParams = requestParams;
+		
+		urlParams["utmt"]  = GoogleTrackTypeToString( GoogleTrackType.GAEvent );
+		urlParams["utmcc"] = CookieData();
+		urlParams["utmn"]  = Random.Range(1000000000,2000000000).ToString();
+		urlParams["utmp"]  = gaLevel.ToUrlParamString();
+		eventList.Add(urlParams);
+	}
+	
+	public void Add(GAUserTimer gaUserTimer)
+	{
+	 	// https://developers.google.com/analytics/devguides/collection/gajs/gaTrackingTiming
+		Hashtable urlParams = requestParams;
+		
+		urlParams["utmt"] = GoogleTrackTypeToString( GoogleTrackType.GATiming );
+		urlParams["utmn"] = Random.Range(1000000000,2000000000).ToString();
+		urlParams["utmcc"] = CookieData();
+		urlParams["utme"]  = gaUserTimer.ToUrlParamString();
+		eventList.Add(urlParams);
+	}
 	
 	public void SetCustomVar(int index, string name, string value, int scope)
 	{
@@ -68,53 +109,41 @@ public class GoogleAnalytics : MonoBehaviour {
 		Debug.Log("Custom Var");
 	}
 	
-	public void TrackLevel()
-	{
-		string levelName = Application.loadedLevelName;
-		requestParams["utmt"] = GoogleTrackType.GALevel;
-		requestParams["utmn"] = Random.Range(1000000000,2000000000).ToString();
-		requestParams["utmcc"] = CookieData();
-		requestParams["utmp"] = levelName;
-		
-		Dispatch();
-		Clear();
-	}
-	
-	public void TrackEvent(string category, string label, string action, int value)
-	{
-		requestParams["utmt"] = GoogleTrackType.GAEvent;
-		requestParams["utmn"] = Random.Range(1000000000,2000000000).ToString();
-		requestParams["utmcc"] = CookieData();
-		
-		Dispatch();
-		Clear();
-	}
-	
-	public void TrackTiming()
-	{
-	 	// https://developers.google.com/analytics/devguides/collection/gajs/gaTrackingTiming
-		requestParams["utmt"] = GoogleTrackType.GATiming;
-		requestParams["utmn"] = Random.Range(1000000000,2000000000).ToString();
-		requestParams["utmcc"] = CookieData();
-		
-		Dispatch();
-		Clear();
-	}
-	
 	public void Dispatch()
 	{
 		// Send the data to the Google Servers
-    	string urlParams = BuildRequestString();
-		string url = "http://www.google-analytics.com/__utm.gif?" + urlParams;
-		new WWW(url);
+		List<Hashtable> tmpDelete = new List<Hashtable>();
+		foreach(Hashtable e in eventList)
+		{
+    		string urlParams = BuildRequestString(e);
+			string url = "http://www.google-analytics.com/__utm.gif?" + urlParams;
+			new WWW(url);
+			
+			tmpDelete.Add(e);
+		}
+		
+		foreach(Hashtable e in tmpDelete)
+		{
+			if (eventList.Contains(e))
+			{
+				eventList.Remove(e);	
+			}
+		}
 	}
 	
-	private void Clear()
+	private string GoogleTrackTypeToString(GoogleTrackType trackType)
 	{
-		// Remove so the slate it clean for new tracking
-		requestParams.Remove("utmt");
-		requestParams.Remove("utmn");
-		requestParams.Remove("utmcc");
+		switch(trackType)
+		{
+		case GoogleTrackType.GAEvent:
+			return "event";
+		case GoogleTrackType.GALevel:
+			return "page";
+		case GoogleTrackType.GATiming:
+			return "event";
+		default:
+			return "event";
+		}
 	}
 	
 	private long DeviceIdentifier
@@ -137,15 +166,15 @@ public class GoogleAnalytics : MonoBehaviour {
 	private string SavedFirstSessionStartTime
 	{
 		get{ if (PlayerPrefs.HasKey("gaFirstSessionStartTime"))
-				{
-					return PlayerPrefs.GetString("gaFirstSessionStartTime");
-				}else{
-					long currentTime = GetEpochTime();
-					PlayerPrefs.SetString("gaFirstSessionStartTime", currentTime.ToString());
-					PlayerPrefs.SetString("gaLastSessionStartTime", currentTime.ToString());
-					return PlayerPrefs.GetString("gaFirstSessionStartTime");
-				}
-			}	
+			{
+				return PlayerPrefs.GetString("gaFirstSessionStartTime");
+			}else{
+				long currentTime = GetEpochTime();
+				PlayerPrefs.SetString("gaFirstSessionStartTime", currentTime.ToString());
+				PlayerPrefs.SetString("gaLastSessionStartTime", currentTime.ToString());
+				return PlayerPrefs.GetString("gaFirstSessionStartTime");
+			}
+		}
 	}
 	
 	private string SavedLastSessionStartTime
@@ -158,7 +187,7 @@ public class GoogleAnalytics : MonoBehaviour {
 	private string CookieData()
 	{
 		long currentTime  = GetEpochTime();
-		long domainHash = Hash(defaultURL);
+		long domainHash   = Hash(defaultURL);
 		
 		// __utma Identifies unique Visitors
 		string _utma   = domainHash + "." + DeviceIdentifier + "." + firstSessionStartTime + "." + 
@@ -174,11 +203,12 @@ public class GoogleAnalytics : MonoBehaviour {
 		return "__utma" + WWW.EscapeURL("=") + _utma + "__utmz" + WWW.EscapeURL("=") + _utmz;
 	}
 	
-	private string BuildRequestString()
+	private string BuildRequestString(Hashtable urlParams)
 	{
 		List<string> args = new List<string>();
-		foreach( string key in requestParams.Keys ) {
-			args.Add( key + "=" + requestParams[key] );	
+		foreach( string key in urlParams.Keys ) 
+		{
+			args.Add( key + "=" + urlParams[key] );	
 		}
 		return string.Join("&", args.ToArray());	
 	}
@@ -189,16 +219,17 @@ public class GoogleAnalytics : MonoBehaviour {
 		
 		int hash = 0;
 		int hashCmp = 0;
-		for(int urlLen=url.Length-1; urlLen>=0; urlLen--){
+		for(int urlLen=url.Length-1; urlLen>=0; urlLen--)
+		{
 			int charCode = (int)url[urlLen];
-            hash    = (hash<<6&268435455) + charCode + (charCode<<14);
-            hashCmp = hash&266338304;
-            hash    = hashCmp != 0 ? hash^hashCmp>>21 : hash;
+		    hash    = (hash<<6&268435455) + charCode + (charCode<<14);
+		    hashCmp = hash&266338304;
+		    hash    = hashCmp != 0 ? hash^hashCmp>>21 : hash;
 		}
 		return hash;
 	}
 	
-	private long GetEpochTime() 
+	public long GetEpochTime() 
 	{
 		System.DateTime currentTime = System.DateTime.Now;
 		System.DateTime epochStart  = System.Convert.ToDateTime("1/1/1970 0:00:00 AM");
@@ -214,4 +245,195 @@ public enum GoogleTrackType{
 	GALevel,
 	GAEvent,
 	GATiming,
+}
+
+public class GALevel
+{
+	private string _page_name;
+	
+	public GALevel ()
+	{
+		_page_name = Application.loadedLevelName;	
+	}
+	
+	public GALevel (string levelName)
+	{
+		_page_name = levelName;	
+	}
+	
+	
+	public string Level
+	{
+		get{ return _page_name; }
+		set{ _page_name = value; }
+	}
+	
+	public string ToUrlParamString()
+	{
+		if (Level == null)
+		{
+			throw new System.ArgumentException("GALevel: Please Specify a Level Name");	
+		}
+		return Level;
+	}
+}
+
+public class GAEvent
+{
+	private string _category;
+	private string _action;
+	private string _opt_label;
+	private int _opt_value = -1;
+	private bool _opt_noninteraction = false;
+	
+	public GAEvent(string category, string action)
+	{
+		Category = category;
+		Action   = action;
+	}
+	
+	public GAEvent(string category, string action, string label)
+	{
+		Category = category;
+		Action   = action;
+		Label    = label;
+	}
+	
+	public GAEvent(string category, string action, string label, int opt_value)
+	{
+		Category = category;
+		Action   = action;
+		Label    = label;
+		Value    = opt_value;
+	}
+	
+	public string Category
+	{
+		get{ return _category;  }
+		set{ _category = value; }
+	}
+	
+	public string Action
+	{
+		get{ return _action;}
+		set{ _action = value;}
+	}
+	
+	public string Label
+	{
+		get{ return _opt_label; }
+		set{ _opt_label = value; }
+	}
+	
+	public int Value
+	{
+		get{ return _opt_value; }
+		set{ _opt_value = value; }
+	}
+	
+	public bool NonInteraction
+	{
+		get{ return _opt_noninteraction;}
+		set{ _opt_noninteraction = value; }
+	}
+	
+	public string ToUrlParamString()
+	{
+		//"5(<category>*<action>*<label>*<value>)"
+		string utme = "5(";
+		utme += Category;
+		utme += "*" + Action;
+		if (Category == null || Action == null)
+		{
+			throw new System.ArgumentException("GAEvent: Category and Action must be specified");	
+		}
+		if (Label != null)
+		{
+			utme += "*" + Label;
+		}
+		
+		if (Value != -1)
+		{
+			utme += "*" + Value;
+		}
+		
+		utme += ")";
+			
+		return utme;	
+	}
+}
+
+public class GAUserTimer
+{
+	private string _category;
+	private string _variable;
+	private string _label;
+	
+	private long _startTime;
+	private long _stopTime;
+	
+	public GAUserTimer(string category, string variable)
+	{
+		Category = category;
+		Variable = variable;
+	}
+	
+	public GAUserTimer(string category, string variable, string label)
+	{
+		Category = category;
+		Variable = variable;
+		Label    = label;
+	}
+	
+	public string Category
+	{
+		get{ return _category; }
+		set{ _category = value; }
+	}
+	
+	public string Variable
+	{
+		get{ return _variable; }
+		set{ _variable = value; }
+	}
+	
+	public string Label
+	{
+		get{ return _label; }
+		set{ _label = value; }
+	}
+	
+	public void Start(){
+		_startTime = GoogleAnalytics.instance.GetEpochTime();
+	}
+	
+	public void Stop()
+	{
+		_stopTime  = GoogleAnalytics.instance.GetEpochTime();
+	}
+	
+	private long ElapsedTime()
+	{
+		if (_startTime == 0 || _stopTime == 0)
+		{
+			throw new System.ArgumentException("To get the elapsed time please specify the start and end time");	
+		}
+		return (_stopTime - _startTime) * 1000;
+	}
+	
+	public string ToUrlParamString()
+	{
+		string utme = "14(";
+		utme +=  Variable;
+		utme += "*" + Category;
+		utme += "*" + ElapsedTime();
+		if (Label != null)
+		{
+			utme += "*" + Label;
+		}
+		utme += ")";
+		
+		return utme;
+	}
+	
 }
