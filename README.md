@@ -18,12 +18,24 @@ GoogleAnalytics.instance.Dispatch();
 ```
 
 Track Event
---------------
+-----------
 ```CSharp
 GAEvent myEvent = new GAEvent("MyCategory", "MyAction");
 GoogleAnalytics.instance.Add(myEvent);
 GoogleAnalytics.instance.Dispatch();
 ```
+
+Track User Timing
+-----------------
+```CSharp
+GAUserTimer myTimer = new GAUserTimer("MyTimerCategory", "MyTimerVariable");
+myTimer.Start();
+// Do a bunch of stuff...
+myTimer.Stop();
+GoogleAnalytics.instance.Add(myTimer);
+GoogleAnalytics.instance.Dispatch();
+```
+
 
 TODO
 ----

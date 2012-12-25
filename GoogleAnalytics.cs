@@ -47,6 +47,10 @@ public class GoogleAnalytics : MonoBehaviour {
 	}
 	
 	public void Start(){
+		string screenResolution = Screen.width.ToString() + "x" + Screen.height.ToString();
+		string buildNum  = "BuildNumber";
+		string buildName = "BuildName";
+		
 		//Get the player prefs last time played and current time
 		currentSessionStartTime = GetEpochTime().ToString();
 		lastSessionStartTime = SavedLastSessionStartTime;
@@ -55,6 +59,13 @@ public class GoogleAnalytics : MonoBehaviour {
 		
 		requestParams["utmac"] = propertyID;
 		requestParams["utmhn"] = defaultURL;
+		requestParams["utmdt"] = buildNum;
+		requestParams["utmp"]  = buildName;
+		requestParams["utmfl"] = Application.unityVersion.ToString();	
+		requestParams["utmsc"] = "24-bit";
+		requestParams["utmsr"] = screenResolution;
+		requestParams["utmwv"] = "5.3.8";
+		requestParams["utmul"] = "en-us";
 		
 		// Set the last session start time
 		SavedLastSessionStartTime = currentSessionStartTime;
@@ -83,7 +94,7 @@ public class GoogleAnalytics : MonoBehaviour {
 	{
 		Hashtable urlParams = requestParams;
 		
-		urlParams["utmt"]  = GoogleTrackTypeToString( GoogleTrackType.GAEvent );
+		urlParams["utmt"]  = GoogleTrackTypeToString( GoogleTrackType.GALevel );
 		urlParams["utmcc"] = CookieData();
 		urlParams["utmn"]  = Random.Range(1000000000,2000000000).ToString();
 		urlParams["utmp"]  = gaLevel.ToUrlParamString();
@@ -102,13 +113,6 @@ public class GoogleAnalytics : MonoBehaviour {
 		eventList.Add(urlParams);
 	}
 	
-	public void SetCustomVar(int index, string name, string value, int scope)
-	{
-		// optional scope values: 1 (visitor-level), 2 (session-level), or 3 (page-level).
-		// https://developers.google.com/analytics/devguides/collection/gajs/gaTrackingCustomVariables	
-		Debug.Log("Custom Var");
-	}
-	
 	public void Dispatch()
 	{
 		// Send the data to the Google Servers
@@ -118,6 +122,8 @@ public class GoogleAnalytics : MonoBehaviour {
     		string urlParams = BuildRequestString(e);
 			string url = "http://www.google-analytics.com/__utm.gif?" + urlParams;
 			new WWW(url);
+			
+			Debug.Log(url);
 			
 			tmpDelete.Add(e);
 		}
@@ -142,7 +148,7 @@ public class GoogleAnalytics : MonoBehaviour {
 		case GoogleTrackType.GATiming:
 			return "event";
 		default:
-			return "event";
+			return "page";
 		}
 	}
 	
@@ -423,15 +429,16 @@ public class GAUserTimer
 	
 	public string ToUrlParamString()
 	{
-		string utme = "14(";
+		string utme = "14(90!";
 		utme +=  Variable;
 		utme += "*" + Category;
-		utme += "*" + ElapsedTime();
+		utme += "*" + ElapsedTime().ToString();
 		if (Label != null)
 		{
 			utme += "*" + Label;
 		}
 		utme += ")";
+		utme += "(90!" + ElapsedTime().ToString() + ")";
 		
 		return utme;
 	}
