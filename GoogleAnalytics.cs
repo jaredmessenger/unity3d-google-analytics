@@ -47,6 +47,9 @@ public class GoogleAnalytics : MonoBehaviour {
 	}
 	
 	public void Start(){
+        // Increment the number of times played
+        IncrSessions();
+
 		string screenResolution = Screen.width.ToString() + "x" + Screen.height.ToString();
 		string buildNum  = "BuildNumber";
 		string buildName = "BuildName";
@@ -69,9 +72,6 @@ public class GoogleAnalytics : MonoBehaviour {
 		
 		// Set the last session start time
 		SavedLastSessionStartTime = currentSessionStartTime;
-		
-		// Increment the number of times played
-		IncrSessions();
 	}
 	
 	public void Add(GAEvent gaEvent)
