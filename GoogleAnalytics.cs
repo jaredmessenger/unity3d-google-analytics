@@ -2,24 +2,6 @@ using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
 
-/*
- * 		requestParams["utmac"]  = // Account String UA-XXXXX
- * 		requestParams["utmhn"]  = // Hostname
-		requestParams["utmdt"]  = // Page title - Possible use this as a level/map/section
-		requestParams["utme"]   = // Event Parameters
-		requestParams["utmt"]	= // Type of request: page, event, transaction, item, custom variable, default is page
-		requestParams["utmp"]	= // Page request of the current page
-		requestParams["utmcr"]  = // Language encoded for the browser
-		requestParams["utmfl"]  = // flash version
-		requestParams["utmn"]	= // Unique ID generated for each GIF request to prevent caching
-		requestParams["utmsc"]	= // Screen color depth
-		requestParams["utmsr"]	= // Screen resolution
-		requestParams["utmwv"]  = // Tracking code version
-		requestParams["utmul"]	= // Browser language http://www.metamodpro.com/browser-language-codes
-		requestParams["utmcc"]  = // Cookie
- * 
- */
-
 public class GoogleAnalytics : MonoBehaviour {
 	
 	public string propertyID;
