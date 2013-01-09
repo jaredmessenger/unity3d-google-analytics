@@ -30,8 +30,8 @@ public class GoogleAnalytics : MonoBehaviour {
 	
 	void Start()
 	{
-        // Increment the number of times played
-        IncrSessions();
+		// Increment the number of times played
+		IncrSessions();
 
 		string screenResolution = Screen.width.ToString() + "x" + Screen.height.ToString();
 		string buildNum  = "BuildNumber";
