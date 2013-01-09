@@ -28,7 +28,8 @@ public class GoogleAnalytics : MonoBehaviour {
 		}
 	}
 	
-	public void Start(){
+	void Start()
+	{
         // Increment the number of times played
         IncrSessions();
 
