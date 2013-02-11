@@ -9,7 +9,7 @@ public class GoogleAnalytics : MonoBehaviour {
 	
 	public static GoogleAnalytics instance;
 	
-	private Hashtable requestParams = new Hashtable();
+	private Hashtable sessionRequestParams = new Hashtable();
 	private List<Hashtable> eventList= new List<Hashtable>();
 	
 	private string currentSessionStartTime;
@@ -28,14 +28,9 @@ public class GoogleAnalytics : MonoBehaviour {
 		}
 	}
 	
-	void Start()
-	{
+	public void Start(){
 		// Increment the number of times played
 		IncrSessions();
-
-		string screenResolution = Screen.width.ToString() + "x" + Screen.height.ToString();
-		string buildNum  = "BuildNumber";
-		string buildName = "BuildName";
 		
 		//Get the player prefs last time played and current time
 		currentSessionStartTime = GetEpochTime().ToString();
@@ -43,80 +38,115 @@ public class GoogleAnalytics : MonoBehaviour {
 		firstSessionStartTime = SavedFirstSessionStartTime;
 		sessions = NumSessions;
 		
-		requestParams["utmac"] = propertyID;
-		requestParams["utmhn"] = defaultURL;
-		requestParams["utmdt"] = buildNum;
-		requestParams["utmp"]  = buildName;
-		requestParams["utmfl"] = Application.unityVersion.ToString();	
-		requestParams["utmsc"] = "24-bit";
-		requestParams["utmsr"] = screenResolution;
-		requestParams["utmwv"] = "5.3.8";
-		requestParams["utmul"] = "en-us";
-		
 		// Set the last session start time
 		SavedLastSessionStartTime = currentSessionStartTime;
+		
+		string screenResolution = Screen.width.ToString() + "x" + Screen.height.ToString();
+		
+		sessionRequestParams["utmac"] = propertyID;
+		sessionRequestParams["utmhn"] = SystemInfo.deviceType.ToString();
+		sessionRequestParams["utmfl"] = Application.unityVersion.ToString();	
+		sessionRequestParams["utmsc"] = "24-bit";
+		sessionRequestParams["utmsr"] = screenResolution;
+		sessionRequestParams["utmwv"] = "5.3.8";
+		sessionRequestParams["utmul"] = "en-us";
 	}
 	
-	public void Add(GAEvent gaEvent)
+	private Hashtable LevelSpecificRequestParams()
 	{
-		Hashtable urlParams = requestParams;
+		// Copy the session request params
+		Hashtable levelRequestParams = new Hashtable(sessionRequestParams);
 		
-		urlParams["utmt"]  = GoogleTrackTypeToString( GoogleTrackType.GAEvent );
-		urlParams["utmcc"] = CookieData();
-		urlParams["utmn"]  = Random.Range(1000000000,2000000000).ToString();
-		urlParams["utme"]  = gaEvent.ToUrlParamString();
+		levelRequestParams["utmdt"] = Application.loadedLevelName;
 		
-		if (gaEvent.NonInteraction)
-		{
-			urlParams["utmni"] = 1;	
-		}
-		eventList.Add(urlParams);
+		// Will be overridden if you use GALevel
+		levelRequestParams["utmp"]  = Application.loadedLevelName;
+		
+		return levelRequestParams;
 	}
 	
 	public void Add(GALevel gaLevel)
 	{
-		Hashtable urlParams = requestParams;
+		Hashtable eventSpecificParams = (Hashtable)LevelSpecificRequestParams().Clone();
 		
-		urlParams["utmt"]  = GoogleTrackTypeToString( GoogleTrackType.GALevel );
-		urlParams["utmcc"] = CookieData();
-		urlParams["utmn"]  = Random.Range(1000000000,2000000000).ToString();
-		urlParams["utmp"]  = gaLevel.ToUrlParamString();
-		eventList.Add(urlParams);
+		eventSpecificParams["utmt"]  = GoogleTrackTypeToString( GoogleTrackType.GALevel );
+		eventSpecificParams["utmcc"] = CookieData();
+		eventSpecificParams["utmn"]  = Random.Range(1000000000,2000000000).ToString();
+		eventSpecificParams["utmp"]  = gaLevel.ToUrlParamString();
+		
+		eventList.Add(eventSpecificParams);
 	}
 	
+	public void Add(GAEvent gaEvent)
+	{
+		Hashtable eventSpecificParams = (Hashtable)LevelSpecificRequestParams().Clone();
+		
+		eventSpecificParams["utmt"]  = GoogleTrackTypeToString( GoogleTrackType.GAEvent );
+		eventSpecificParams["utmcc"] = CookieData();
+		eventSpecificParams["utmn"]  = Random.Range(1000000000,2000000000).ToString();
+		eventSpecificParams["utme"]  = gaEvent.ToUrlParamString();
+		
+		if (gaEvent.NonInteraction)
+		{
+			eventSpecificParams["utmni"] = 1;	
+		}
+		eventList.Add(eventSpecificParams);
+	}
+	
+	//
+	//  For more info on user tracking https://developers.google.com/analytics/devguides/collection/gajs/gaTrackingTiming
+	//
 	public void Add(GAUserTimer gaUserTimer)
 	{
-	 	// https://developers.google.com/analytics/devguides/collection/gajs/gaTrackingTiming
-		Hashtable urlParams = requestParams;
+	 	
+		Hashtable eventSpecificParams = (Hashtable)LevelSpecificRequestParams().Clone();
 		
-		urlParams["utmt"] = GoogleTrackTypeToString( GoogleTrackType.GATiming );
-		urlParams["utmn"] = Random.Range(1000000000,2000000000).ToString();
-		urlParams["utmcc"] = CookieData();
-		urlParams["utme"]  = gaUserTimer.ToUrlParamString();
-		eventList.Add(urlParams);
+		eventSpecificParams["utmt"] = GoogleTrackTypeToString( GoogleTrackType.GATiming );
+		eventSpecificParams["utmn"] = Random.Range(1000000000,2000000000).ToString();
+		eventSpecificParams["utmcc"] = CookieData();
+		eventSpecificParams["utme"]  = gaUserTimer.ToUrlParamString();
+		
+		eventList.Add(eventSpecificParams);
 	}
 	
+	//
+	// turns all the events into request urls
+	//
 	public void Dispatch()
 	{
-		// Send the data to the Google Servers
-		List<Hashtable> tmpDelete = new List<Hashtable>();
-		foreach(Hashtable e in eventList)
+		for (int evtIndex=0; evtIndex<eventList.Count; evtIndex++)
 		{
-    		string urlParams = BuildRequestString(e);
-			string url = "http://www.google-analytics.com/__utm.gif?" + urlParams;
-			new WWW(url);
-			
-			Debug.Log(url);
-			
-			tmpDelete.Add(e);
+			string urlRequestParams = BuildRequestString(eventList[evtIndex]);
+			string url = "http://www.google-analytics.com/__utm.gif?" + urlRequestParams;
+			StartCoroutine( MakeRequest(url, eventList[evtIndex])  );
 		}
+	}
+	
+	
+	//
+	//  send the request to google
+	//
+	IEnumerator MakeRequest(string url, Hashtable evt)
+	{
+		WWW request = new WWW(url);
 		
-		foreach(Hashtable e in tmpDelete)
+		yield return request;
+		
+		if(request.error == null)
 		{
-			if (eventList.Contains(e))
+			if (request.responseHeaders.ContainsKey("STATUS"))
 			{
-				eventList.Remove(e);	
+				if (request.responseHeaders["STATUS"] == "HTTP/1.1 200 OK")	
+				{
+					eventList.Remove(evt);	
+				}else{
+					Debug.LogWarning(request.responseHeaders["STATUS"]);	
+				}
+			}else{
+				Debug.LogWarning("Event failed to send to Google");	
 			}
+		}else{
+			Debug.LogWarning(request.error.ToString());	
 		}
 	}
 	
