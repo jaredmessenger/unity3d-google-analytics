@@ -205,10 +205,10 @@ public class GoogleAnalytics : MonoBehaviour {
 	// Grab the cookie data for every event/pageview because it grabs the current time
 	private string CookieData()
 	{
-		long currentTime  = GetEpochTime();
 		long domainHash   = Hash(defaultURL);
 		
 		// __utma Identifies unique Visitors
+		// <Domain hash>.<visitor id>.<time of initial session>.<time of previsous session>.<time of current session>.<session number>
 		string _utma   = domainHash + "." + DeviceIdentifier + "." + firstSessionStartTime + "." + 
 			lastSessionStartTime + "." + currentSessionStartTime + "." + sessions + WWW.EscapeURL(";") + WWW.EscapeURL("+");
 
@@ -217,7 +217,7 @@ public class GoogleAnalytics : MonoBehaviour {
 			"utmccn" + WWW.EscapeURL("=") + "(direct)" + WWW.EscapeURL("|") + 
 			"utmcmd" + WWW.EscapeURL("=") + "(none)" + WWW.EscapeURL(";");
 		
-		string _utmz = domainHash + "." + currentTime + "." + sessions + ".1." + cookieUTMZstr;
+		string _utmz = domainHash + "." + currentSessionStartTime + "." + sessions + ".1." + cookieUTMZstr;
 		
 		return "__utma" + WWW.EscapeURL("=") + _utma + "__utmz" + WWW.EscapeURL("=") + _utmz;
 	}
