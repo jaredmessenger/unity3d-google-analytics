@@ -48,8 +48,10 @@ public class GoogleAnalytics : MonoBehaviour {
 		sessionRequestParams["utmfl"] = Application.unityVersion.ToString();	
 		sessionRequestParams["utmsc"] = "24-bit";
 		sessionRequestParams["utmsr"] = screenResolution;
-		sessionRequestParams["utmwv"] = "5.3.8";
+		sessionRequestParams["utmwv"] = "4.9.1";
 		sessionRequestParams["utmul"] = "en-us";
+		sessionRequestParams["utmcs"] = "ISO-8859-1";
+		sessionRequestParams["utmcn"] = "1";
 	}
 	
 	private Hashtable LevelSpecificRequestParams()
@@ -190,7 +192,6 @@ public class GoogleAnalytics : MonoBehaviour {
 			}else{
 				long currentTime = GetEpochTime();
 				PlayerPrefs.SetString("gaFirstSessionStartTime", currentTime.ToString());
-				PlayerPrefs.SetString("gaLastSessionStartTime", currentTime.ToString());
 				return PlayerPrefs.GetString("gaFirstSessionStartTime");
 			}
 		}
@@ -198,7 +199,16 @@ public class GoogleAnalytics : MonoBehaviour {
 	
 	private string SavedLastSessionStartTime
 	{
-		get{ return PlayerPrefs.GetString("gaLastSessionStartTime"); }
+		get{ 
+			if (PlayerPrefs.HasKey("gaLastSessionStartTime"))
+			{
+				return PlayerPrefs.GetString("gaLastSessionStartTime"); 
+			}else{
+				string firstSession = SavedFirstSessionStartTime;
+				PlayerPrefs.SetString("gaLastSessionStartTime", firstSession);
+				return firstSession;
+			}
+		}
 		set{ PlayerPrefs.SetString("gaLastSessionStartTime", value.ToString()); }
 	}
 	
@@ -293,7 +303,7 @@ public class GALevel
 		{
 			throw new System.ArgumentException("GALevel: Please Specify a Level Name");	
 		}
-		return Level;
+		return  System.Uri.EscapeDataString( Level );
 	}
 }
 
@@ -360,15 +370,15 @@ public class GAEvent
 	{
 		//"5(<category>*<action>*<label>*<value>)"
 		string utme = "5(";
-		utme += Category;
-		utme += "*" + Action;
+		utme += System.Uri.EscapeDataString( Category );
+		utme += "*" + System.Uri.EscapeDataString( Action );
 		if (Category == null || Action == null)
 		{
 			throw new System.ArgumentException("GAEvent: Category and Action must be specified");	
 		}
 		if (Label != null)
 		{
-			utme += "*" + Label;
+			utme += "*" + System.Uri.EscapeDataString( Label );
 		}
 		
 		if (Value != -1)
@@ -443,12 +453,12 @@ public class GAUserTimer
 	public string ToUrlParamString()
 	{
 		string utme = "14(90!";
-		utme +=  Variable;
-		utme += "*" + Category;
+		utme +=  System.Uri.EscapeDataString( Variable );
+		utme += "*" + System.Uri.EscapeDataString( Category );
 		utme += "*" + ElapsedTime().ToString();
 		if (Label != null)
 		{
-			utme += "*" + Label;
+			utme += "*" + System.Uri.EscapeDataString( Label );
 		}
 		utme += ")";
 		utme += "(90!" + ElapsedTime().ToString() + ")";
