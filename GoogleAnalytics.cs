@@ -71,7 +71,6 @@ public class GoogleAnalytics : MonoBehaviour {
 	{
 		Hashtable eventSpecificParams = (Hashtable)LevelSpecificRequestParams().Clone();
 		
-		eventSpecificParams["utmt"]  = GoogleTrackTypeToString( GoogleTrackType.GALevel );
 		eventSpecificParams["utmcc"] = CookieData();
 		eventSpecificParams["utmn"]  = Random.Range(1000000000,2000000000).ToString();
 		eventSpecificParams["utmp"]  = gaLevel.ToUrlParamString();
@@ -121,6 +120,7 @@ public class GoogleAnalytics : MonoBehaviour {
 			string urlRequestParams = BuildRequestString(eventList[evtIndex]);
 			string url = "http://www.google-analytics.com/__utm.gif?" + urlRequestParams;
 			StartCoroutine( MakeRequest(url, eventList[evtIndex])  );
+			Debug.Log(url);
 		}
 	}
 	
