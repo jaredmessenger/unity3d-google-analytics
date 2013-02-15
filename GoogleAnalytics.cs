@@ -59,10 +59,10 @@ public class GoogleAnalytics : MonoBehaviour {
 		// Copy the session request params
 		Hashtable levelRequestParams = new Hashtable(sessionRequestParams);
 		
-		levelRequestParams["utmdt"] = Application.loadedLevelName;
+		levelRequestParams["utmdt"] = System.Uri.EscapeDataString( Application.loadedLevelName );
 		
 		// Will be overridden if you use GALevel
-		levelRequestParams["utmp"]  = Application.loadedLevelName;
+		levelRequestParams["utmp"]  = System.Uri.EscapeDataString( Application.loadedLevelName );
 		
 		return levelRequestParams;
 	}
@@ -120,7 +120,6 @@ public class GoogleAnalytics : MonoBehaviour {
 			string urlRequestParams = BuildRequestString(eventList[evtIndex]);
 			string url = "http://www.google-analytics.com/__utm.gif?" + urlRequestParams;
 			StartCoroutine( MakeRequest(url, eventList[evtIndex])  );
-			Debug.Log(url);
 		}
 	}
 	
