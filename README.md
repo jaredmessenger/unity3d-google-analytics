@@ -9,6 +9,8 @@ Setup
 * Add your property id provided by google
 * Add your default url
 
+### Checkout the [WIKI](https://github.com/jared-mess/unity3d-google-analytics/wiki) for more examples.
+
 Track Level
 -------------
 ```CSharp
@@ -35,7 +37,6 @@ myTimer.Stop();
 GoogleAnalytics.instance.Add(myTimer);
 GoogleAnalytics.instance.Dispatch();
 ```
-
 
 TODO
 ----
