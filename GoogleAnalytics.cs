@@ -129,27 +129,53 @@ public class GoogleAnalytics : MonoBehaviour {
 	//
 	IEnumerator MakeRequest(string url, Hashtable evt)
 	{
+		// HACK: make it think it's an image to get by crossdomain issues
+#if UNITY_WEBPLAYER
+		if (url.Contains("?")) {
+			url += "&";
+		}
+		else {
+			url += "?";
+		}
+		url += "_fakeext=.jpg";
+#endif
+
 		WWW request = new WWW(url);
-		
+
 		yield return request;
-		
+
 		if(request.error == null)
 		{
-			if (request.responseHeaders.ContainsKey("STATUS"))
-			{
-				if (request.responseHeaders["STATUS"] == "HTTP/1.1 200 OK")	
+
+            if (request.responseHeaders.ContainsKey("STATUS"))
+            {
+                if (request.responseHeaders["STATUS"].Contains("200"))	
+                {
+                    if (eventList.Contains(evt)) {
+                        eventList.Remove(evt);
+                    }
+                }
+			} else if (request.responseHeaders.ContainsKey("CONTENT-LENGTH")) {
+				// If the response didn't have a status in the header, check for content length (some androids return null as it's status)
+				foreach (string keyValue in request.responseHeaders.Values)
 				{
-					eventList.Remove(evt);	
-				}else{
-					Debug.LogWarning(request.responseHeaders["STATUS"]);	
+					if (keyValue.Contains("200"))
+					{
+	                    if (eventList.Contains(evt)) {
+	                        eventList.Remove(evt);
+	                    }
+						break;
+					}
 				}
-			}else{
-				Debug.LogWarning("Event failed to send to Google");	
-			}
+
+            }else{
+                Debug.LogWarning("Event failed to send to Google");	
+            }
 		}else{
-			Debug.LogWarning(request.error.ToString());	
+			Debug.LogWarning("GoogleAnalytics WWW failure: " + request.error.ToString());	
 		}
 	}
+
 	
 	private string GoogleTrackTypeToString(GoogleTrackType trackType)
 	{
@@ -382,7 +408,7 @@ public class GAEvent
 		
 		if (Value != -1)
 		{
-			utme += "*" + Value;
+			utme += ")(" + Value ;
 		}
 		
 		utme += ")";
