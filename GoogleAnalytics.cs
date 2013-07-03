@@ -95,6 +95,27 @@ public class GoogleAnalytics : MonoBehaviour {
 	}
 	
 	//
+	// You can purchase items not tied to a transaction, Google will create a blank transaction
+	//
+	public void Add(GAPurchaseItem gaPurchaseItem)
+	{
+		Hashtable eventSpecificParams = (Hashtable)LevelSpecificRequestParams().Clone();
+		
+		eventSpecificParams["utmt"]  = GoogleTrackTypeToString( GoogleTrackType.GAPurchaseItem );
+		eventSpecificParams["utmcc"] = CookieData();
+		eventSpecificParams["utmn"]  = Random.Range(1000000000,2000000000).ToString();
+		
+		// Purchase specific params
+		Hashtable purchaseParams = gaPurchaseItem.ToParamHashtable();
+		foreach(DictionaryEntry item in purchaseParams)
+		{
+			eventSpecificParams[item.Key] = item.Value;	
+		}
+		
+		eventList.Add(eventSpecificParams);
+	}
+	
+	//
 	//  For more info on user tracking https://developers.google.com/analytics/devguides/collection/gajs/gaTrackingTiming
 	//
 	public void Add(GAUserTimer gaUserTimer)
@@ -185,6 +206,8 @@ public class GoogleAnalytics : MonoBehaviour {
 			return "event";
 		case GoogleTrackType.GALevel:
 			return "page";
+		case GoogleTrackType.GAPurchaseItem:
+			return "item";
 		case GoogleTrackType.GATiming:
 			return "event";
 		default:
@@ -298,6 +321,7 @@ public class GoogleAnalytics : MonoBehaviour {
 public enum GoogleTrackType{
 	GALevel,
 	GAEvent,
+	GAPurchaseItem,
 	GATiming,
 }
 
@@ -491,4 +515,66 @@ public class GAUserTimer
 		return utme;
 	}
 	
+}
+
+public class GAPurchaseItem
+{
+	private string _sku;
+	private string _productName;
+	private string _category; // or it could be a variation such as "Red", 
+	private decimal _price;
+	private int _quantity;
+	
+	public GAPurchaseItem(string sku, string productName, decimal price) 
+	{
+		//_transactionId = transactionId;
+		_sku           = sku;
+		_productName   = productName;
+		_price         = price;
+		_quantity      = 1;
+	}
+	
+	public GAPurchaseItem(string sku, string productName, decimal price, int quantity) 
+	{
+		//_transactionId = transactionId;
+		_sku           = sku;
+		_productName   = productName;
+		_price         = price;
+		_quantity      = quantity;
+	}
+	
+	public GAPurchaseItem(string sku, string productName, string category, decimal price)
+	{
+		_sku         = sku;
+		_productName = productName;
+		_category    = category;
+		_price       = price;
+		_quantity    = 1;
+	}
+	
+	public GAPurchaseItem(string sku, string productName, string category, decimal price, int quantity)
+	{
+		_sku         = sku;
+		_productName = productName;
+		_category    = category;
+		_price       = price;
+		_quantity    = quantity;
+	}
+	
+	public Hashtable ToParamHashtable()
+	{
+		//System.Uri.EscapeDataString( Category );
+		Hashtable param = new Hashtable();
+		param["utmtid"]  = System.Uri.EscapeDataString("(not set)");
+		param["utmipc"] = System.Uri.EscapeDataString(_sku);
+		param["utmipn"] = System.Uri.EscapeDataString(_productName);
+		param["utmipr"] = _price.ToString();
+		param["utmiqt"] = _quantity.ToString();
+		
+		if (!string.IsNullOrEmpty(_category)) {
+			param["utmiva"] = System.Uri.EscapeDataString(_category);
+		}
+		
+		return param;
+	}
 }
