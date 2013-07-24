@@ -167,7 +167,6 @@ public class GoogleAnalytics : MonoBehaviour {
 
 		if(request.error == null)
 		{
-
             if (request.responseHeaders.ContainsKey("STATUS"))
             {
                 if (request.responseHeaders["STATUS"].Contains("200"))	
@@ -188,9 +187,15 @@ public class GoogleAnalytics : MonoBehaviour {
 						break;
 					}
 				}
-
+			} else if (request.bytes.Length == 35) {
+				// Work around for Unity 3.5 iOS response headers.  Google returns a 1x1Pixel gif which is 35 bytes.
+                if (eventList.Contains(evt)) {
+                    eventList.Remove(evt);
+                }
             }else{
+				
                 Debug.LogWarning("Event failed to send to Google");	
+				Debug.Log(request.bytes.ToString());
             }
 		}else{
 			Debug.LogWarning("GoogleAnalytics WWW failure: " + request.error.ToString());	

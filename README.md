@@ -50,7 +50,7 @@ GoogleAnalytics.instance.Add(myTimer);
 GoogleAnalytics.instance.Dispatch();
 ```
 
-Track E-Commerce
+Track ECommerce
 ----------------
 ```CSharp
 // The price is a decimal type!  Don't forget to add the "m" after the numbers.
