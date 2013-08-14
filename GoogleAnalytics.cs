@@ -10,12 +10,15 @@ public class GoogleAnalytics : MonoBehaviour {
 	public static GoogleAnalytics instance;
 	
 	private Hashtable sessionRequestParams = new Hashtable();
-	private List<Hashtable> eventList= new List<Hashtable>();
+	
+	private Queue<Hashtable> requestQueue  = new Queue<Hashtable>();
 	
 	private string currentSessionStartTime;
 	private string lastSessionStartTime;
 	private string firstSessionStartTime;
 	private int sessions;
+	
+	private bool dispatchInProgress = new bool();
 	
 	void Awake()
 	{
@@ -59,9 +62,10 @@ public class GoogleAnalytics : MonoBehaviour {
 		// Copy the session request params
 		Hashtable levelRequestParams = new Hashtable(sessionRequestParams);
 		
+		// Page Title
 		levelRequestParams["utmdt"] = System.Uri.EscapeDataString( Application.loadedLevelName );
 		
-		// Will be overridden if you use GALevel
+		// Will be overridden if you use GALevel (Page)
 		levelRequestParams["utmp"]  = System.Uri.EscapeDataString( Application.loadedLevelName );
 		
 		return levelRequestParams;
@@ -75,7 +79,7 @@ public class GoogleAnalytics : MonoBehaviour {
 		eventSpecificParams["utmn"]  = Random.Range(1000000000,2000000000).ToString();
 		eventSpecificParams["utmp"]  = gaLevel.ToUrlParamString();
 		
-		eventList.Add(eventSpecificParams);
+		requestQueue.Enqueue(eventSpecificParams);
 	}
 	
 	public void Add(GAEvent gaEvent)
@@ -91,7 +95,13 @@ public class GoogleAnalytics : MonoBehaviour {
 		{
 			eventSpecificParams["utmni"] = 1;	
 		}
-		eventList.Add(eventSpecificParams);
+		
+		if (gaEvent.Level != null)
+		{
+			eventSpecificParams["utmp"]  = gaEvent.Level.ToUrlParamString();
+		}
+		
+		requestQueue.Enqueue(eventSpecificParams);
 	}
 	
 	//
@@ -112,7 +122,7 @@ public class GoogleAnalytics : MonoBehaviour {
 			eventSpecificParams[item.Key] = item.Value;	
 		}
 		
-		eventList.Add(eventSpecificParams);
+		requestQueue.Enqueue(eventSpecificParams);
 	}
 	
 	//
@@ -128,7 +138,12 @@ public class GoogleAnalytics : MonoBehaviour {
 		eventSpecificParams["utmcc"] = CookieData();
 		eventSpecificParams["utme"]  = gaUserTimer.ToUrlParamString();
 		
-		eventList.Add(eventSpecificParams);
+		if (gaUserTimer.Level != null)
+		{
+			eventSpecificParams["utmp"]  = gaUserTimer.Level.ToUrlParamString();
+		}
+		
+		requestQueue.Enqueue(eventSpecificParams);
 	}
 	
 	//
@@ -136,12 +151,30 @@ public class GoogleAnalytics : MonoBehaviour {
 	//
 	public void Dispatch()
 	{
-		for (int evtIndex=0; evtIndex<eventList.Count; evtIndex++)
+		if ((requestQueue.Count > 0) && !dispatchInProgress)
 		{
-			string urlRequestParams = BuildRequestString(eventList[evtIndex]);
-			string url = "http://www.google-analytics.com/__utm.gif?" + urlRequestParams;
-			StartCoroutine( MakeRequest(url, eventList[evtIndex])  );
+			StartCoroutine(DelayedDispatch());
 		}
+	}
+	
+	//
+	// Dispatches all the requests
+	//
+	IEnumerator DelayedDispatch()
+	{
+		dispatchInProgress = true;
+			
+		yield return new WaitForEndOfFrame();
+		
+		while (requestQueue.Count > 0)
+		{
+			Hashtable eventParams = (Hashtable)requestQueue.Dequeue();
+			string urlRequestParams = BuildRequestString(eventParams);
+			string url = "http://www.google-analytics.com/__utm.gif?" + urlRequestParams;
+			yield return StartCoroutine( MakeRequest(url, eventParams) );
+		}
+		
+		dispatchInProgress = false;
 	}
 	
 	
@@ -167,36 +200,7 @@ public class GoogleAnalytics : MonoBehaviour {
 
 		if(request.error == null)
 		{
-            if (request.responseHeaders.ContainsKey("STATUS"))
-            {
-                if (request.responseHeaders["STATUS"].Contains("200"))	
-                {
-                    if (eventList.Contains(evt)) {
-                        eventList.Remove(evt);
-                    }
-                }
-			} else if (request.responseHeaders.ContainsKey("CONTENT-LENGTH")) {
-				// If the response didn't have a status in the header, check for content length (some androids return null as it's status)
-				foreach (string keyValue in request.responseHeaders.Values)
-				{
-					if (keyValue.Contains("200"))
-					{
-	                    if (eventList.Contains(evt)) {
-	                        eventList.Remove(evt);
-	                    }
-						break;
-					}
-				}
-			} else if (request.bytes.Length == 35) {
-				// Work around for Unity 3.5 iOS response headers.  Google returns a 1x1Pixel gif which is 35 bytes.
-                if (eventList.Contains(evt)) {
-                    eventList.Remove(evt);
-                }
-            }else{
-				
-                Debug.LogWarning("Event failed to send to Google");	
-				Debug.Log(request.bytes.ToString());
-            }
+            Debug.Log("Google Analytic Request Sent");
 		}else{
 			Debug.LogWarning("GoogleAnalytics WWW failure: " + request.error.ToString());	
 		}
@@ -363,6 +367,7 @@ public class GALevel
 
 public class GAEvent
 {
+	private GALevel _level;
 	private string _category;
 	private string _action;
 	private string _opt_label;
@@ -388,6 +393,29 @@ public class GAEvent
 		Action   = action;
 		Label    = label;
 		Value    = opt_value;
+	}
+	
+	public GAEvent(GALevel level, string category, string action, string label)
+	{
+		Level    = level;
+		Category = category;
+		Action   = action;
+		Label    = label;
+	}
+	
+	public GAEvent(GALevel level, string category, string action, string label, int opt_value)
+	{
+		Level    = level;
+		Category = category;
+		Action   = action;
+		Label    = label;
+		Value    = opt_value;
+	}
+	
+	public GALevel Level
+	{
+		get { return _level; }
+		set { _level = value; }
 	}
 	
 	public string Category
@@ -437,7 +465,7 @@ public class GAEvent
 		
 		if (Value != -1)
 		{
-			utme += ")(" + Value ;
+			utme += ")(" + Value;
 		}
 		
 		utme += ")";
@@ -446,8 +474,10 @@ public class GAEvent
 	}
 }
 
+
 public class GAUserTimer
 {
+	private GALevel _level;
 	private string _category;
 	private string _variable;
 	private string _label;
@@ -466,6 +496,27 @@ public class GAUserTimer
 		Category = category;
 		Variable = variable;
 		Label    = label;
+	}
+	
+	public GAUserTimer(GALevel level, string category, string variable)
+	{
+		Level    = level;
+		Category = category;
+		Variable = variable;
+	}
+	
+	public GAUserTimer(GALevel level, string category, string variable, string label)
+	{
+		Level    = level;
+		Category = category;
+		Variable = variable;
+		Label    = label;
+	}
+	
+	public GALevel Level
+	{
+		get { return _level; }
+		set { _level = value; }
 	}
 	
 	public string Category
@@ -519,8 +570,8 @@ public class GAUserTimer
 		
 		return utme;
 	}
-	
 }
+
 
 public class GAPurchaseItem
 {
